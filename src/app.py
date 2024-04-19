@@ -54,9 +54,15 @@ def prepare_data(body):
             "role": "CHATBOT" if message["role"] == "assistant" else message["role"].upper(),
             "message": message["content"]
         })
-    data.update({k: v for k, v in body.items() if not re.match(r"^(model|messages|stream)$", k, re.IGNORECASE)})
-    data["message"] = body["messages"][-1]["content"] if body.get("messages") else ""
-    data["model"] = body.get("model", "").replace("net-", "") or "command-r"
+    if str(body.get('model', '')).startswith("net-"):
+        data['connectors'] = [{"id": "web-search"}]
+    for key, value in body.items():
+        if not re.match(r'^(model|messages|stream)$', key, re.I):
+            data[key] = value
+    if re.match(r'^(net-)?command', str(body.get('model', ''))):
+        data['model'] = re.sub(r'^net-', '', str(body.get('model', '')))
+    if 'model' not in data or not data['model']:
+        data['model'] = search.get('model', "command-r")
     return data
 
 def prepare_headers(req):
