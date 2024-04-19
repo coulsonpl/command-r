@@ -22,4 +22,3 @@ services:
 ### 环境变量说明
 * HTTP_PROXY: 指定所有请求通过的代理服务器的URL
 * SERVER_PORT: 代表监听的端口，默认3030
-* 如果有多个反代站点直接添加多个以SERVER_PORT_开头的环境变量就行了
