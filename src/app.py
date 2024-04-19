@@ -54,7 +54,6 @@ async def fetch(req):
 
     async with ClientSession(trust_env=True) as session:  # trust_env=True允许从环境变量读取代理配置
         async with session.post('https://api.cohere.ai/v1/chat', json=data, headers=headers, proxy=http_proxy or https_proxy) as resp:
-            logging.info(f"Request headers: {json.dumps(headers, indent=4)}")
             if resp.status != 200:
                 response_text = await resp.text()
                 logging.info(f"Request headers: {json.dumps(headers, indent=4)}")
