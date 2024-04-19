@@ -6,6 +6,7 @@ import asyncio
 from aiohttp import ClientSession, web
 from dotenv import load_dotenv
 import logging
+import threading
 
 # 加载环境变量
 load_dotenv()
@@ -16,6 +17,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # 从环境变量读取代理设置
 http_proxy = os.getenv('HTTP_PROXY')
 https_proxy = os.getenv('HTTPS_PROXY')
+
+# 初始化全局变量和锁
+last_key_index = -1
+index_lock = threading.Lock()
 
 async def fetch(req):
     if req.method == "OPTIONS":
@@ -47,10 +52,26 @@ async def fetch(req):
 
     headers = {'content-type': 'application/json'}
     if req.headers.get('authorization'):
-        headers["Authorization"] = req.headers.get('authorization')
+        global last_key_index
+        authorization = req.headers.get('authorization')
+        
+        if authorization and authorization.lower().startswith('bearer '):
+            keys = authorization[7:].split(',')
+            if keys:
+                with index_lock:
+                    # 检查上次选中的key是否超出当前keys列表的范围
+                    if last_key_index >= len(keys) or last_key_index < 0:
+                        last_key_index = 0  # 重置为0，避免崩溃
+                    else:
+                        # 轮询选择下一个key
+                        last_key_index = (last_key_index + 1) % len(keys)
+                    selected_key = keys[last_key_index]
+                authorization = f"Bearer {selected_key}"
+        headers["Authorization"] = authorization
     else:
         url_params = req.url.query
-        headers["Authorization"] = "bearer " + url_params.get('key')
+        headers["Authorization"] = "Bearer " + url_params.get('key')
+    logging.info(f"Request headers: {json.dumps(headers, indent=4)}")
 
     async with ClientSession(trust_env=True) as session:  # trust_env=True允许从环境变量读取代理配置
         async with session.post('https://api.cohere.ai/v1/chat', json=data, headers=headers, proxy=http_proxy or https_proxy) as resp:
