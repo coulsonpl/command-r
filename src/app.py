@@ -98,6 +98,7 @@ def create_response(data, response_json):
     return web.Response(text=json.dumps(wrapped_chunk, ensure_ascii=False), content_type='application/json', headers={
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': '*',
+        'Content-Type': 'application/json; charset=UTF-8',
     })
 
 def generate_wrapped_chunk(data, content):
