@@ -22,3 +22,15 @@ services:
 ### 环境变量说明
 * HTTP_PROXY: 指定所有请求通过的代理服务器的URL
 * SERVER_PORT: 代表监听的端口，默认3030
+
+### 支持传多个KEY进行轮询
+```
+curl --location 'http://127.0.0.1:3030/v1/chat/completions' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer key1,key2,key3' \
+--data '{
+     "model": "command-r-plus",
+     "stream": false,
+     "messages": [{"role": "user", "content": "Say this is a test!"}]
+   }'
+```
