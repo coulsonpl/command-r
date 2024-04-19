@@ -60,7 +60,7 @@ def prepare_data(body):
     return data
 
 def prepare_headers(req):
-    headers = {'content-type': 'application/json'}
+    headers = {'Content-Type': 'application/json; charset=utf-8', 'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br, zstd', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'}
     authorization = req.headers.get('authorization')
     if authorization and authorization.lower().startswith('bearer '):
         global last_key_index
