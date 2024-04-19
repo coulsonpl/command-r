@@ -34,7 +34,6 @@ async def fetch(req):
         body = await req.json()
         data = prepare_data(body)
         headers = prepare_headers(req)
-        # logging.info(f"Request headers: {headers}")
         response = await post_request(data, headers, req)
         return response
     except Exception as e:
@@ -54,6 +53,7 @@ def prepare_data(body):
             "role": "CHATBOT" if message["role"] == "assistant" else message["role"].upper(),
             "message": message["content"]
         })
+    data['message'] = body['messages'][-1].get('content')
     if str(body.get('model', '')).startswith("net-"):
         data['connectors'] = [{"id": "web-search"}]
     for key, value in body.items():
@@ -100,16 +100,9 @@ async def handle_response(data, resp, req):
         return await stream_response(resp, data, req)
 
 def create_response(data, response_json):
-    wrapped_chunk = generate_wrapped_chunk(data, response_json.get("text", response_json.get("error")))
-    return web.Response(text=json.dumps(wrapped_chunk, ensure_ascii=False), content_type='application/json', headers={
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': '*',
-    })
-
-def generate_wrapped_chunk(data, content):
-    return {
-        "id": "chatcmpl-9FLdP4Hj7KJ2BYYeskHyLALXnLzrY",
-        "object": "chat.completion.chunk",
+    wrapped_chunk = {
+        "id": "chatcmpl-QXlha2FBbmROaXhpZUFyZUF3ZXNvbWUK",
+        "object": "chat.completion",
         "created": int(time.time()),
         "model": data["model"],
         "choices": [
@@ -117,7 +110,7 @@ def generate_wrapped_chunk(data, content):
                 "index": 0,
                 "delta": {
                     "role": "assistant",
-                    "content": content
+                    "content": response_json.get("text", response_json.get("error"))
                 },
                 "finish_reason": "stop",
             }
@@ -129,8 +122,15 @@ def generate_wrapped_chunk(data, content):
         },
         "system_fingerprint": None
     }
+    print(json.dumps(wrapped_chunk, ensure_ascii=False))
+    return web.Response(text=json.dumps(wrapped_chunk, ensure_ascii=False), content_type='application/json', headers={
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': '*',
+    })
 
 async def stream_response(resp, data, req):
+    created = int(time.time())
+
     writer = web.StreamResponse()
     writer.headers['Access-Control-Allow-Origin'] = '*'
     writer.headers['Access-Control-Allow-Headers'] = '*'
@@ -138,15 +138,44 @@ async def stream_response(resp, data, req):
     await writer.prepare(req)
 
     async for chunk in resp.content.iter_any():
+        # 字符串解码
         try:
-            chunk_json = json.loads(chunk.decode('utf-8'))
-            wrapped_chunk = generate_wrapped_chunk(data, chunk_json.get("text", chunk_json.get("error")))
-            event_data = f"data: {json.dumps(wrapped_chunk, ensure_ascii=False)}\n\n"
-            await writer.write(event_data.encode('utf-8'))
+            chunk_str = chunk.decode('utf-8')
+        except UnicodeDecodeError:
+            try:
+                chunk_str = chunk.decode('latin-1')
+            except UnicodeDecodeError:
+                chunk_str = chunk.decode('gbk', errors='ignore')  # 忽略无法解码的字符
+        
+        # 解析JSON字符串
+        try:
+            chunk_json = json.loads(chunk_str)
         except Exception as e:
-            logging.error(f"Error streaming response: {e}")
-            break
+            logging.error(f"Failed to parse JSON chunk: {e}")
+            continue
 
+        # 流式回复
+        is_finished = chunk_json.get("is_finished", False)
+        if is_finished:
+            wrapped_chunk = { 
+                "id": "chatcmpl-QXlha2FBbmROaXhpZUFyZUF3ZXNvbWUK", "object": "chat.completion.chunk", 
+                "created": created, 
+                "model": data["model"], 
+                "choices": [
+                    { "index": 0, "delta": {}, "finish_reason": 'stop' }
+                ]
+            }
+        else:
+            wrapped_chunk = { 
+                "id": "chatcmpl-QXlha2FBbmROaXhpZUFyZUF3ZXNvbWUK", "object": "chat.completion.chunk", 
+                "created": created, 
+                "model": data["model"], 
+                "choices": [
+                    { "index": 0, "delta": { "role": "assistant", "content": chunk_json.get("text", chunk_json.get("error")) }, "finish_reason": None }
+                ]
+            }
+        event_data = f"data: {json.dumps(wrapped_chunk, ensure_ascii=False)}\n\n"
+        await writer.write(event_data.encode('utf-8'))
     return writer
 
 async def onRequest(request):
