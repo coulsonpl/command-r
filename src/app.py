@@ -155,27 +155,31 @@ async def stream_response(resp, data, req):
             continue
 
         # 流式回复
-        is_finished = chunk_json.get("is_finished", False)
-        if is_finished:
+        content_text = chunk_json.get("text")
+        if content_text is not None and content_text != "":
             wrapped_chunk = { 
                 "id": "chatcmpl-QXlha2FBbmROaXhpZUFyZUF3ZXNvbWUK", "object": "chat.completion.chunk", 
                 "created": created, 
                 "model": data["model"], 
                 "choices": [
-                    { "index": 0, "delta": {}, "finish_reason": 'stop' }
+                    { "index": 0, "delta": { "role": "assistant", "content": content_text }, "finish_reason": None }
                 ]
             }
-        else:
-            wrapped_chunk = { 
-                "id": "chatcmpl-QXlha2FBbmROaXhpZUFyZUF3ZXNvbWUK", "object": "chat.completion.chunk", 
-                "created": created, 
-                "model": data["model"], 
-                "choices": [
-                    { "index": 0, "delta": { "role": "assistant", "content": chunk_json.get("text", chunk_json.get("error")) }, "finish_reason": None }
-                ]
-            }
-        event_data = f"data: {json.dumps(wrapped_chunk, ensure_ascii=False)}\n\n"
-        await writer.write(event_data.encode('utf-8'))
+            event_data = f"data: {json.dumps(wrapped_chunk, ensure_ascii=False)}\n\n"
+            await writer.write(event_data.encode('utf-8'))
+
+    # finish chunk
+    finish_wrapped_chunk = { 
+        "id": "chatcmpl-QXlha2FBbmROaXhpZUFyZUF3ZXNvbWUK", "object": "chat.completion.chunk", 
+        "created": created, 
+        "model": data["model"], 
+        "choices": [
+            { "index": 0, "delta": {}, "finish_reason": 'stop' }
+        ]
+    }
+    finish_event_data = f"data: {json.dumps(finish_wrapped_chunk, ensure_ascii=False)}\n\n"
+    await writer.write(finish_event_data.encode('utf-8'))
+
     return writer
 
 async def onRequest(request):
