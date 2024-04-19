@@ -151,7 +151,7 @@ async def stream_response(resp, data, req):
         try:
             chunk_json = json.loads(chunk_str)
         except Exception as e:
-            logging.error(f"Failed to parse JSON chunk: {e}")
+            # logging.error(f"Failed to parse JSON chunk: {e}")
             continue
 
         # 流式回复
