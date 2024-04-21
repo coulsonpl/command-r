@@ -6,6 +6,7 @@ from aiohttp import ClientSession, web
 from dotenv import load_dotenv
 import logging
 import threading
+import chardet
 
 # 加载环境变量
 load_dotenv()
@@ -80,6 +81,26 @@ def prepare_headers(req):
         headers["Authorization"] = "Bearer " + url_params.get('key', '')
     return headers
 
+# 尝试解析多个JSON字符串拼在一起的字符串
+def extract_and_concatenate_texts(json_string):
+    concatenated_text = ""
+    start_index = 0
+    for end_index in range(len(json_string)):
+        # 仅当检测到闭合大括号时尝试解析
+        if json_string[end_index] == '}':
+            try:
+                # 尝试解析当前子字符串为JSON
+                json_obj = json.loads(json_string[start_index:end_index + 1])
+                # 如果成功，提取"text"字段并拼接
+                if 'text' in json_obj:
+                    concatenated_text += json_obj['text']
+                # 更新开始索引为下一个字符的位置
+                start_index = end_index + 1
+            except json.JSONDecodeError:
+                # 如果解析失败，忽略错误继续尝试
+                pass
+    return concatenated_text
+
 async def post_request(data, headers, req):
     async with ClientSession(trust_env=True) as session:
         return await send_request(session, data, headers, req)
@@ -122,7 +143,6 @@ def create_response(data, response_json):
         },
         "system_fingerprint": None
     }
-    print(json.dumps(wrapped_chunk, ensure_ascii=False))
     return web.Response(text=json.dumps(wrapped_chunk, ensure_ascii=False), content_type='application/json', headers={
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': '*',
@@ -139,23 +159,27 @@ async def stream_response(resp, data, req):
 
     async for chunk in resp.content.iter_any():
         # 字符串解码
-        try:
-            chunk_str = chunk.decode('utf-8')
-        except UnicodeDecodeError:
+        encodings =  ['utf-8', 'latin-1', 'gbk', 'ascii', 'utf-16', 'gb2312', 'gb18030', 'big5', 'euc-jp', 'euc-kr', 'shift_jis', 'iso-8859-1', 'iso-8859-15', 'windows-1252', 'koi8-r', 'mac_cyrillic', 'utf-32']
+        for encoding in encodings:
             try:
-                chunk_str = chunk.decode('latin-1')
+                chunk_str = chunk.decode(encoding)
+                break
             except UnicodeDecodeError:
-                chunk_str = chunk.decode('gbk', errors='ignore')  # 忽略无法解码的字符
+                pass
+        if chunk_str == None:
+            encoding = chardet.detect(chunk)
+            chunk_str = chunk.decode(encoding['encoding'], errors='ignore') # 忽略无法解码的字符
         
         # 解析JSON字符串
         try:
             chunk_json = json.loads(chunk_str)
+            content_text = chunk_json.get("text")
         except Exception as e:
+            # 尝试解析多个JSON字符串拼在一起的字符串
+            content_text = extract_and_concatenate_texts(chunk_str)
             # logging.error(f"Failed to parse JSON chunk: {e}")
-            continue
 
         # 流式回复
-        content_text = chunk_json.get("text")
         if content_text is not None and content_text != "":
             wrapped_chunk = { 
                 "id": "chatcmpl-QXlha2FBbmROaXhpZUFyZUF3ZXNvbWUK", "object": "chat.completion.chunk", 
