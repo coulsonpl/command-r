@@ -48,7 +48,7 @@ def create_options_response():
     }, status=204)
 
 def prepare_data(body):
-    logging.error(f"prepare_data body: {body}")
+    # logging.info(f"prepare data with body: {body}")
     data = {"chat_history": [], "stream": body.get("stream", False)}
     for message in body.get("messages", [])[:-1]:
         data["chat_history"].append({
