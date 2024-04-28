@@ -48,6 +48,7 @@ def create_options_response():
     }, status=204)
 
 def prepare_data(body):
+    logging.error(f"prepare_data body: {body}")
     data = {"chat_history": [], "stream": body.get("stream", False)}
     for message in body.get("messages", [])[:-1]:
         data["chat_history"].append({
@@ -63,7 +64,7 @@ def prepare_data(body):
     if re.match(r'^(net-)?command', str(body.get('model', ''))):
         data['model'] = re.sub(r'^net-', '', str(body.get('model', '')))
     if 'model' not in data or not data['model']:
-        data['model'] = search.get('model', "command-r")
+        data['model'] = "command-r"
     return data
 
 def prepare_headers(req):
