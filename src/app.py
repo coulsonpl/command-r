@@ -115,7 +115,7 @@ async def send_request(session, data, headers, req):
         return await handle_response(data, resp, req)
 
 async def handle_response(data, resp, req):
-    if not data["stream"]:
+    if not data.get("stream"):
         response_json = await resp.json()
         return create_response(data, response_json)
     else:
